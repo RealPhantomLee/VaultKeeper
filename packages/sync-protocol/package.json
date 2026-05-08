@@ -1,0 +1,20 @@
+{
+  "name": "@vaultkeeper/sync-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@vaultkeeper/types": "workspace:*",
+    "@vaultkeeper/crypto": "workspace:*",
+    "@vaultkeeper/config": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

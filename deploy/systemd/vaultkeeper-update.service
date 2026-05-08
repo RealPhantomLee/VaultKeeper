@@ -1,0 +1,14 @@
+[Unit]
+Description=VaultKeeper Auto-Update Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/vaultkeeper/scripts/auto-update.sh
+WorkingDirectory=/opt/vaultkeeper
+StandardOutput=append:/opt/vaultkeeper/logs/auto-update.log
+StandardError=append:/opt/vaultkeeper/logs/auto-update.log
+
+[Install]
+WantedBy=multi-user.target

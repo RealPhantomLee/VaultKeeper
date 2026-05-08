@@ -1,0 +1,79 @@
+services:
+  sync-server:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    container_name: vaultkeeper-sync
+    restart: unless-stopped
+    ports:
+      - "${SYNC_PORT:-3456}:3456"
+    environment:
+      - PORT=3456
+      - DATABASE_URL=sqlite:///opt/vaultkeeper/data/vaultkeeper.db
+      - DATA_DIR=/opt/vaultkeeper/data
+      - BACKUP_DIR=/opt/vaultkeeper/backups
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - RUST_LOG=${RUST_LOG:-info}
+    volumes:
+      - vaultkeeper-data:/opt/vaultkeeper/data
+      - vaultkeeper-backups:/opt/vaultkeeper/backups
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3456/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - vaultkeeper-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: vaultkeeper-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-8080}:80"
+      - "${NGINX_HTTPS_PORT:-8443}:443"
+    volumes:
+      - ../deploy/nginx/vaultkeeper.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx-logs:/var/log/nginx
+      - ${SSL_CERT_PATH:-./certs}:/etc/nginx/certs:ro
+    depends_on:
+      sync-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 64M
+    networks:
+      - vaultkeeper-net
+
+volumes:
+  vaultkeeper-data:
+    driver: local
+  vaultkeeper-backups:
+    driver: local
+  nginx-logs:
+    driver: local
+
+networks:
+  vaultkeeper-net:
+    driver: bridge

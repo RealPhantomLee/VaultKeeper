@@ -1,0 +1,39 @@
+{
+  "name": "vaultkeeper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first encrypted knowledge management platform",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:desktop": "turbo run dev --filter=@vaultkeeper/desktop",
+    "dev:mobile": "turbo run dev --filter=@vaultkeeper/mobile",
+    "dev:server": "turbo run dev --filter=@vaultkeeper/server",
+    "build": "turbo run build",
+    "build:desktop": "turbo run build --filter=@vaultkeeper/desktop",
+    "build:mobile": "turbo run build --filter=@vaultkeeper/mobile",
+    "build:server": "turbo run build --filter=@vaultkeeper/server",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "docker:build": "docker compose -f deploy/compose/docker-compose.yml build",
+    "docker:up": "docker compose -f deploy/compose/docker-compose.yml up -d",
+    "docker:down": "docker compose -f deploy/compose/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.33.4"
+}
