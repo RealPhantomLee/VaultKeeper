@@ -147,7 +147,17 @@ npm run docker:up    # Start Docker services
 
 ## License
 
-MIT
+[MIT](LICENSE)
+
+## Related projects
+
+- [Local-AI-Web-Workspace](https://github.com/RealPhantomLee/Local-AI-Web-Workspace) — local-first AI stack (Ollama + AnythingLLM + Homarr)
+- [airpoint](https://github.com/RealPhantomLee/airpoint) — touchless cursor control via webcam (Python + MediaPipe)
+- [CyberSec-Web-Services](https://github.com/RealPhantomLee/CyberSec-Web-Services) — production self-hosted business site
+- [vulnerability-management-lab](https://github.com/RealPhantomLee/vulnerability-management-lab) — end-to-end VM lifecycle lab
+- [azure-security-monitoring-lab](https://github.com/RealPhantomLee/azure-security-monitoring-lab) — Azure hardening + KQL detections
+
+Full portfolio: [github.com/RealPhantomLee](https://github.com/RealPhantomLee)
 
 ## Contributing
 
