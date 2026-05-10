@@ -12,9 +12,9 @@ out/
 target/
 # Cargo.lock IS committed for the server binary crate (intentionally not ignored)
 
-# Tauri
-src-tauri/target/
-src-tauri/gen/
+# Tauri (anywhere in the tree)
+**/src-tauri/target/
+**/src-tauri/gen/
 
 # IDE
 .vscode/

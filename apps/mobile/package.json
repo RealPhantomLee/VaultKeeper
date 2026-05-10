@@ -10,7 +10,7 @@
     "build:ios": "react-native run-ios --configuration Release",
     "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "clean": "rm -rf .turbo"
   },
   "dependencies": {

@@ -31,14 +31,14 @@ See [Architecture](docs/architecture.md) for detailed system design.
 
 ### Desktop Development
 ```bash
-# Install dependencies
-npm install
+# Install dependencies (pnpm 10+)
+pnpm install
 
 # Start development server
-npm run dev:desktop
+just dev-desktop          # or: pnpm --filter @vaultkeeper/desktop tauri:dev
 
 # Build for production
-npm run build:desktop
+pnpm --filter @vaultkeeper/desktop build
 ```
 
 ### Server Deployment
@@ -50,13 +50,13 @@ docker compose -f deploy/compose/docker-compose.yml up -d
 ### Mobile Development
 ```bash
 # Start Metro bundler
-npm run dev:mobile
+pnpm --filter @vaultkeeper/mobile start
 
 # Run on Android
-npm run android
+pnpm --filter @vaultkeeper/mobile android
 
 # Run on iOS
-npm run ios
+pnpm --filter @vaultkeeper/mobile ios
 ```
 
 ## Project Structure
@@ -65,7 +65,7 @@ npm run ios
 VaultKeeper/
 ├── packages/
 │   ├── types/              # Shared TypeScript types
-│   ├── crypto/             # Encryption (libsodium/XChaCha20)
+│   ├── crypto/             # Encryption (tweetnacl XChaCha20-Poly1305 + hash-wasm Argon2id + @noble/hashes HMAC)
 │   ├── sync-protocol/      # Sync logic & conflict resolution
 │   └── config/             # Shared constants
 ├── apps/
@@ -109,7 +109,7 @@ VaultKeeper/
 | Editor | TipTap + ProseMirror |
 | Search | SQLite FTS5 |
 | Graph | D3.js |
-| Encryption | XChaCha20-Poly1305 (libsodium) |
+| Encryption | XChaCha20-Poly1305 via tweetnacl + Argon2id via hash-wasm + HMAC-SHA256 via @noble/hashes |
 | State | Zustand |
 | Styling | TailwindCSS |
 | Testing | Vitest + Playwright |
@@ -128,9 +128,11 @@ VaultKeeper/
 ## Development
 
 ### Prerequisites
-- Node.js 20+
-- Rust 1.80+
+- Node.js 22 (`.nvmrc`)
+- pnpm 10+
+- Rust 1.95 (`rust-toolchain.toml`)
 - Docker + Docker Compose
+- `just` (recipes in `justfile`) — optional but recommended
 - Git
 
 ### Commands

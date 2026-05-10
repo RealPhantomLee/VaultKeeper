@@ -237,6 +237,43 @@ pub async fn sync(
         ));
     }
 
+    // Confirm the vault belongs to the authenticated user before doing anything.
+    let owner: Option<String> = sqlx::query_scalar("SELECT user_id FROM vaults WHERE id = ?")
+        .bind(&req.vault_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError {
+                    code: "DB_ERROR".to_string(),
+                    message: "Database error".to_string(),
+                }),
+            )
+        })?;
+
+    match owner {
+        Some(uid) if uid == claims.user_id => {}
+        Some(_) => {
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(ApiError {
+                    code: "FORBIDDEN".to_string(),
+                    message: "Vault does not belong to authenticated user".to_string(),
+                }),
+            ));
+        }
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ApiError {
+                    code: "VAULT_NOT_FOUND".to_string(),
+                    message: "Vault not found".to_string(),
+                }),
+            ));
+        }
+    }
+
     sqlx::query("UPDATE devices SET last_seen_at = datetime('now') WHERE id = ?")
         .bind(&claims.device_id)
         .execute(&state.pool)
@@ -404,10 +441,15 @@ pub async fn sync_status(
 
 pub async fn get_conflicts(
     State(state): State<Arc<AppState>>,
+    claims: AuthClaims,
 ) -> Result<Json<ApiResponse<Vec<SyncConflict>>>, (StatusCode, Json<ApiError>)> {
     let conflicts: Vec<SyncConflict> = sqlx::query_as(
-        "SELECT * FROM sync_conflicts WHERE resolved = 0 ORDER BY created_at DESC",
+        "SELECT c.* FROM sync_conflicts c \
+         JOIN vaults v ON c.vault_id = v.id \
+         WHERE v.user_id = ? AND c.resolved = 0 \
+         ORDER BY c.created_at DESC",
     )
+    .bind(&claims.user_id)
     .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
@@ -422,16 +464,19 @@ pub async fn get_conflicts(
 
 pub async fn resolve_conflict(
     State(state): State<Arc<AppState>>,
+    claims: AuthClaims,
     Path(id): Path<String>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, (StatusCode, Json<ApiError>)> {
     let resolution = req["resolution"].as_str().unwrap_or("local");
 
-    sqlx::query(
-        "UPDATE sync_conflicts SET resolved = 1, resolution = ?, resolved_at = datetime('now') WHERE id = ?",
+    let result = sqlx::query(
+        "UPDATE sync_conflicts SET resolved = 1, resolution = ?, resolved_at = datetime('now') \
+         WHERE id = ? AND vault_id IN (SELECT id FROM vaults WHERE user_id = ?)",
     )
     .bind(resolution)
     .bind(&id)
+    .bind(&claims.user_id)
     .execute(&state.pool)
     .await
     .map_err(|_| {
@@ -443,6 +488,16 @@ pub async fn resolve_conflict(
             }),
         )
     })?;
+
+    if result.rows_affected() == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                code: "CONFLICT_NOT_FOUND".to_string(),
+                message: "Conflict not found or not owned by user".to_string(),
+            }),
+        ));
+    }
 
     Ok(Json(ApiResponse {
         success: true,
@@ -511,21 +566,24 @@ pub async fn create_vault(
 
 pub async fn get_vault(
     State(state): State<Arc<AppState>>,
+    claims: AuthClaims,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<Vault>>, (StatusCode, Json<ApiError>)> {
-    let vault: Option<Vault> = sqlx::query_as("SELECT * FROM vaults WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError {
-                    code: "DB_ERROR".to_string(),
-                    message: "Database error".to_string(),
-                }),
-            )
-        })?;
+    let vault: Option<Vault> =
+        sqlx::query_as("SELECT * FROM vaults WHERE id = ? AND user_id = ?")
+            .bind(&id)
+            .bind(&claims.user_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiError {
+                        code: "DB_ERROR".to_string(),
+                        message: "Database error".to_string(),
+                    }),
+                )
+            })?;
 
     match vault {
         Some(v) => Ok(Json(ApiResponse {
@@ -546,12 +604,18 @@ pub async fn get_vault(
 
 pub async fn list_backups(
     State(state): State<Arc<AppState>>,
+    claims: AuthClaims,
 ) -> Result<Json<ApiResponse<Vec<Backup>>>, (StatusCode, Json<ApiError>)> {
-    let backups: Vec<Backup> =
-        sqlx::query_as("SELECT * FROM backups ORDER BY created_at DESC LIMIT 50")
-            .fetch_all(&state.pool)
-            .await
-            .unwrap_or_default();
+    let backups: Vec<Backup> = sqlx::query_as(
+        "SELECT b.* FROM backups b \
+         JOIN vaults v ON b.vault_id = v.id \
+         WHERE v.user_id = ? \
+         ORDER BY b.created_at DESC LIMIT 50",
+    )
+    .bind(&claims.user_id)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
 
     Ok(Json(ApiResponse {
         success: true,
@@ -562,15 +626,72 @@ pub async fn list_backups(
 }
 
 pub async fn create_backup(
-    State(_state): State<Arc<AppState>>,
-    Json(_req): Json<serde_json::Value>,
+    State(state): State<Arc<AppState>>,
+    claims: AuthClaims,
+    Json(req): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, (StatusCode, Json<ApiError>)> {
-    // TODO: wire SyncManager::create_backup once routes know which vault to back up.
-    let id = uuid::Uuid::new_v4().to_string();
+    let vault_id = req["vault_id"].as_str().ok_or((
+        StatusCode::BAD_REQUEST,
+        Json(ApiError {
+            code: "INVALID_INPUT".to_string(),
+            message: "vault_id is required".to_string(),
+        }),
+    ))?;
+
+    let owner: Option<String> = sqlx::query_scalar("SELECT user_id FROM vaults WHERE id = ?")
+        .bind(vault_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError {
+                    code: "DB_ERROR".to_string(),
+                    message: "Database error".to_string(),
+                }),
+            )
+        })?;
+
+    match owner {
+        Some(uid) if uid == claims.user_id => {}
+        Some(_) => {
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(ApiError {
+                    code: "FORBIDDEN".to_string(),
+                    message: "Vault does not belong to authenticated user".to_string(),
+                }),
+            ));
+        }
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ApiError {
+                    code: "VAULT_NOT_FOUND".to_string(),
+                    message: "Vault not found".to_string(),
+                }),
+            ));
+        }
+    }
+
+    let manager = crate::sync::SyncManager::new(state.pool.clone(), state.data_dir.clone());
+    let backup_id = manager
+        .create_backup(vault_id, &state.backup_dir)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, vault_id, "backup failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError {
+                    code: "BACKUP_FAILED".to_string(),
+                    message: "Failed to create backup".to_string(),
+                }),
+            )
+        })?;
 
     Ok(Json(ApiResponse {
         success: true,
-        data: Some(json!({ "backup_id": id })),
+        data: Some(json!({ "backup_id": backup_id })),
         error: None,
         timestamp: Utc::now().to_rfc3339(),
     }))

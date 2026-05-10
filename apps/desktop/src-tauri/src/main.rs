@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Manager, State};
+use tauri::State;
 
 struct AppState {
     vault_path: Mutex<Option<PathBuf>>,
@@ -92,6 +92,7 @@ fn delete_note(vault_path: String, note_path: String) -> Result<(), String> {
     std::fs::remove_file(&full_path).map_err(|e| e.to_string())
 }
 
+#[derive(serde::Serialize)]
 struct NoteInfo {
     path: String,
     title: String,

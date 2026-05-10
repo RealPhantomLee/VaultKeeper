@@ -19,6 +19,7 @@ notify = "6"
 notify-debouncer-mini = "0.4"
 sha2 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
+walkdir = "2"
 
 [build-dependencies]
 tauri-build = "2"

@@ -2,6 +2,8 @@ import nacl from "tweetnacl";
 import { decodeUTF8, encodeUTF8, encodeBase64, decodeBase64 } from "tweetnacl-util";
 import { EncryptedPayload } from "@vaultkeeper/types";
 import { argon2id as wasmArgon2id } from "hash-wasm";
+import { hmac } from "@noble/hashes/hmac";
+import { sha256 } from "@noble/hashes/sha256";
 
 export interface KeyPair {
   publicKey: string;
@@ -111,14 +113,23 @@ export function generateAuthToken(): string {
   return encodeBase64(bytes).replace(/[^a-zA-Z0-9]/g, "");
 }
 
-// TODO(crypto-review): tweetnacl does not expose HMAC. Replace with Web Crypto
-// `crypto.subtle.verify('HMAC', ...)` or pull in @noble/hashes. The current
-// implementation does NOT use the key and must not be relied on for security.
-export function verifyMac(data: string, mac: string, _key: Uint8Array): boolean {
-  const dataBytes = decodeUTF8(data);
-  const macBytes = decodeBase64(mac);
-  const expectedMac = nacl.hash(dataBytes);
-  return constantTimeCompare(expectedMac, macBytes);
+// HMAC-SHA256 using the supplied key. Returns the base64-encoded tag.
+export function computeMac(data: string, key: Uint8Array): string {
+  const tag = hmac(sha256, key, decodeUTF8(data));
+  return encodeBase64(tag);
+}
+
+// Constant-time HMAC-SHA256 verify. Returns true iff `mac` is the valid tag
+// for `data` under `key`.
+export function verifyMac(data: string, mac: string, key: Uint8Array): boolean {
+  const expected = hmac(sha256, key, decodeUTF8(data));
+  let provided: Uint8Array;
+  try {
+    provided = decodeBase64(mac);
+  } catch {
+    return false;
+  }
+  return constantTimeCompare(expected, provided);
 }
 
 function constantTimeCompare(a: Uint8Array, b: Uint8Array): boolean {
