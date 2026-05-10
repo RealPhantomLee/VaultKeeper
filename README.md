@@ -1,5 +1,10 @@
 # VaultKeeper
 
+[![CI](https://github.com/RealPhantomLee/VaultKeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/RealPhantomLee/VaultKeeper/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Rust 1.95](https://img.shields.io/badge/rust-1.95-orange.svg)](rust-toolchain.toml)
+[![Node 22](https://img.shields.io/badge/node-22-brightgreen.svg)](.nvmrc)
+
 A local-first, encrypted knowledge management platform inspired by Obsidian.md. Your notes, your data, your server.
 
 ## Features

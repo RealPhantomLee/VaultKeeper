@@ -1,5 +1,12 @@
 # Raspberry Pi Setup Guide
 
+VaultKeeper has been validated on two OS choices for the Pi 5:
+
+- **[Arch Linux ARM](#arch-linux-arm-current-target)** — the project's current target. Tailscale already joined.
+- **[Raspberry Pi OS Lite](#step-1-install-raspberry-pi-os)** — original reference path, kept below.
+
+If you're following the Arch path, jump to that section. The Docker / systemd / Nginx / backup pieces afterward are identical on both.
+
 ## Hardware Requirements
 
 - **Raspberry Pi 5** (8GB RAM recommended)
@@ -7,6 +14,62 @@
 - **USB-C Power Supply** (official recommended)
 - **Active Cooler** (recommended for sustained loads)
 - **Ethernet Cable** (preferred over WiFi)
+
+## Arch Linux ARM (current target)
+
+This is the actual deploy target — Pi 5 already has Arch + Tailscale joined as `cyberdeck.local`. Skip step-by-step OS install; this section just covers the package installs the rest of the guide assumes.
+
+```bash
+# SSH in via Tailscale (no port-forwarding required)
+ssh roger@cyberdeck.local
+
+# System update
+sudo pacman -Syu
+
+# Docker + Compose v2
+sudo pacman -S docker docker-compose
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER   # log out/in afterward so the group takes effect
+
+# Firewall (UFW lives in the extra repo on Arch)
+sudo pacman -S ufw
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow in on tailscale0    # trust the tailnet
+sudo ufw allow ssh                 # only if you SSH from outside the tailnet
+sudo ufw enable
+sudo systemctl enable --now ufw
+
+# fail2ban
+sudo pacman -S fail2ban
+sudo systemctl enable --now fail2ban
+
+# Build deps for any local cargo work on the Pi (optional)
+sudo pacman -S base-devel git curl
+
+# Tailscale: already installed and authenticated. Verify:
+tailscale status
+```
+
+Mount the SSD (Arch uses the same `fstab` syntax as Debian; pick `ext4` and `noatime`):
+
+```bash
+sudo mkfs.ext4 /dev/sda1
+sudo mkdir -p /opt/vaultkeeper
+echo "/dev/sda1 /opt/vaultkeeper ext4 defaults,noatime 0 2" | sudo tee -a /etc/fstab
+sudo mount -a
+```
+
+Set the JWT secret (never commit this):
+
+```bash
+sudo install -d -m 700 -o $USER /opt/vaultkeeper
+JWT_SECRET=$(openssl rand -hex 32)
+printf "JWT_SECRET=%s\n" "$JWT_SECRET" | sudo tee /opt/vaultkeeper/.env > /dev/null
+sudo chmod 600 /opt/vaultkeeper/.env
+```
+
+Then jump to **[Step 4: Deploy Services](#step-4-deploy-services)** below — the docker-compose / Nginx / backup pieces are OS-agnostic.
 
 ## Step 1: Install Raspberry Pi OS
 
