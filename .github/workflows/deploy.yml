@@ -7,6 +7,7 @@ on:
       - "server/**"
       - "deploy/**"
       - ".github/workflows/deploy.yml"
+  workflow_dispatch:
 
 env:
   RUST_VERSION: "1.95"
@@ -39,31 +40,61 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/vaultkeeper-server:deploy-${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/vaultkeeper-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Deploy to Raspberry Pi
-        uses: appleboy/ssh-action@v1
+      - name: Copy deploy artifacts to Pi
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.PI_HOST }}
           username: ${{ secrets.PI_USER }}
           key: ${{ secrets.PI_SSH_KEY }}
           port: ${{ secrets.PI_PORT || 22 }}
+          source: "deploy/compose/docker-compose.prod.yml"
+          target: "/opt/vaultkeeper/"
+          strip_components: 2
+
+      - name: Deploy on the Pi
+        uses: appleboy/ssh-action@v1
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          IMAGE_TAG: deploy-${{ github.sha }}
+        with:
+          host: ${{ secrets.PI_HOST }}
+          username: ${{ secrets.PI_USER }}
+          key: ${{ secrets.PI_SSH_KEY }}
+          port: ${{ secrets.PI_PORT || 22 }}
+          envs: DOCKER_USERNAME,IMAGE_TAG
           script: |
+            set -euo pipefail
             cd /opt/vaultkeeper
 
-            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" > .env.deploy
-            echo "IMAGE_TAG=deploy-${{ github.sha }}" >> .env.deploy
+            # Patch .env with this run's image coordinates. JWT_SECRET stays
+            # whatever the operator set during initial Pi setup; we never
+            # touch it here.
+            touch .env
+            chmod 600 .env
+            grep -v '^DOCKER_USERNAME=' .env > .env.tmp || true
+            grep -v '^IMAGE_TAG=' .env.tmp > .env || true
+            rm -f .env.tmp
+            printf "DOCKER_USERNAME=%s\n" "$DOCKER_USERNAME" >> .env
+            printf "IMAGE_TAG=%s\n" "$IMAGE_TAG" >> .env
 
-            docker compose pull
-            docker compose up -d --remove-orphans
-
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
 
-            sleep 5
+            # Wait for the container's own healthcheck to flip to healthy.
+            for i in $(seq 1 30); do
+              status=$(docker inspect --format '{{.State.Health.Status}}' vaultkeeper-sync 2>/dev/null || echo starting)
+              if [ "$status" = "healthy" ]; then
+                echo "vaultkeeper-sync is healthy"
+                exit 0
+              fi
+              sleep 2
+            done
 
-            curl -sf http://localhost:8080/health || {
-              echo "Health check failed, rolling back..."
-              docker compose down
-              docker compose up -d
-            }
+            echo "vaultkeeper-sync did not become healthy in 60s — recent logs:"
+            docker compose -f docker-compose.prod.yml logs --tail 80 sync-server
+            exit 1

@@ -1,0 +1,53 @@
+# Production compose for the Pi. Pulls the image built by .github/workflows/deploy.yml
+# from Docker Hub instead of building locally. Designed to be invoked from
+# /opt/vaultkeeper with a sibling .env supplying JWT_SECRET, DOCKER_USERNAME,
+# and IMAGE_TAG (deploy.yml writes these on every push).
+#
+# Tailscale-first: the sync server is exposed on port 3456 only. Anyone on the
+# tailnet can reach it; nothing is published to the public internet. Add the
+# nginx service from docker-compose.yml later if you decide to expose this
+# beyond the tailnet (you'll also need real TLS certs in ./certs).
+services:
+  sync-server:
+    image: ${DOCKER_USERNAME}/vaultkeeper-server:${IMAGE_TAG:-latest}
+    container_name: vaultkeeper-sync
+    restart: unless-stopped
+    ports:
+      - "${SYNC_PORT:-3456}:3456"
+    environment:
+      - PORT=3456
+      - DATABASE_URL=sqlite:///opt/vaultkeeper/data/vaultkeeper.db
+      - DATA_DIR=/opt/vaultkeeper/data
+      - BACKUP_DIR=/opt/vaultkeeper/backups
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - RUST_LOG=${RUST_LOG:-info}
+      - RUST_ENV=${RUST_ENV:-production}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
+    volumes:
+      - vaultkeeper-data:/opt/vaultkeeper/data
+      - vaultkeeper-backups:/opt/vaultkeeper/backups
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3456/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  vaultkeeper-data:
+    driver: local
+  vaultkeeper-backups:
+    driver: local

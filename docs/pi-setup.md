@@ -60,16 +60,29 @@ echo "/dev/sda1 /opt/vaultkeeper ext4 defaults,noatime 0 2" | sudo tee -a /etc/f
 sudo mount -a
 ```
 
-Set the JWT secret (never commit this):
+Set the JWT secret. The CI deploy will append `DOCKER_USERNAME` and `IMAGE_TAG` to the same `.env` on every push; only `JWT_SECRET` needs to live here permanently.
 
 ```bash
-sudo install -d -m 700 -o $USER /opt/vaultkeeper
+sudo install -d -m 755 -o $USER /opt/vaultkeeper
 JWT_SECRET=$(openssl rand -hex 32)
-printf "JWT_SECRET=%s\n" "$JWT_SECRET" | sudo tee /opt/vaultkeeper/.env > /dev/null
-sudo chmod 600 /opt/vaultkeeper/.env
+printf "JWT_SECRET=%s\n" "$JWT_SECRET" > /opt/vaultkeeper/.env
+chmod 600 /opt/vaultkeeper/.env
 ```
 
-Then jump to **[Step 4: Deploy Services](#step-4-deploy-services)** below — the docker-compose / Nginx / backup pieces are OS-agnostic.
+That's all the Pi needs. The first push to `main` will trigger `.github/workflows/deploy.yml`, which:
+
+1. Builds and pushes a `linux/arm64` image to Docker Hub.
+2. SCPs `deploy/compose/docker-compose.prod.yml` to `/opt/vaultkeeper/`.
+3. SSHes in, appends `DOCKER_USERNAME` + `IMAGE_TAG` to `.env`, runs `docker compose pull && up -d`, and waits for the container's healthcheck.
+
+Once it succeeds, verify from any tailnet device:
+
+```bash
+curl http://cyberdeck.local:3456/health
+# {"status":"healthy","version":"0.1.0","uptime":N}
+```
+
+The remaining sections below (Raspberry Pi OS path, optional Nginx for public HTTPS) only apply if you outgrow the tailnet-only deployment.
 
 ## Step 1: Install Raspberry Pi OS
 
