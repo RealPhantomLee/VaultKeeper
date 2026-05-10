@@ -11,7 +11,7 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY server/Cargo.toml server/Cargo.lock ./
 COPY server/src ./src
-RUN cargo build --release --bin ghosttrack-server
+RUN cargo build --release --bin vaultkeeper-server
 
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
@@ -21,23 +21,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -r ghosttrack && useradd -r -g ghosttrack -d /app -s /sbin/nologin ghosttrack
+RUN groupadd -r vaultkeeper && useradd -r -g vaultkeeper -d /app -s /sbin/nologin vaultkeeper
 
-COPY --from=builder /app/target/release/ghosttrack-server /usr/local/bin/ghosttrack-server
+COPY --from=builder /app/target/release/vaultkeeper-server /usr/local/bin/vaultkeeper-server
 
-RUN mkdir -p /opt/ghosttrack/data /opt/ghosttrack/backups && \
-    chown -R ghosttrack:ghosttrack /opt/ghosttrack
+RUN mkdir -p /opt/vaultkeeper/data /opt/vaultkeeper/backups && \
+    chown -R vaultkeeper:vaultkeeper /opt/vaultkeeper
 
-USER ghosttrack
+USER vaultkeeper
 
-ENV DATA_DIR=/opt/ghosttrack/data
-ENV BACKUP_DIR=/opt/ghosttrack/backups
+ENV DATA_DIR=/opt/vaultkeeper/data
+ENV BACKUP_DIR=/opt/vaultkeeper/backups
 ENV PORT=3456
-ENV DATABASE_URL=sqlite:///opt/ghosttrack/data/ghosttrack.db
+ENV DATABASE_URL=sqlite:///opt/vaultkeeper/data/vaultkeeper.db
 
 EXPOSE 3456
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3456/health || exit 1
 
-ENTRYPOINT ["ghosttrack-server"]
+ENTRYPOINT ["vaultkeeper-server"]

@@ -1,7 +1,7 @@
 import nacl from "tweetnacl";
 import { decodeUTF8, encodeUTF8, encodeBase64, decodeBase64 } from "tweetnacl-util";
 import { EncryptedPayload } from "@vaultkeeper/types";
-import { createXCHACHA20 } from "hash-wasm";
+import { argon2id as wasmArgon2id } from "hash-wasm";
 
 export interface KeyPair {
   publicKey: string;
@@ -43,23 +43,16 @@ async function argon2id(
   salt: Uint8Array,
   outputLength: number,
 ): Promise<Uint8Array> {
-  const iterations = 3;
-  const memory = 65536;
-  const parallelism = 1;
-
-  const hash = await createXCHACHA20();
-  hash.init({
+  const result = await wasmArgon2id({
     password,
     salt,
-    iterations,
-    memorySize: memory,
-    parallelism,
-    outputLength,
-    hashLength: 256,
+    parallelism: 1,
+    iterations: 3,
+    memorySize: 65536,
+    hashLength: outputLength,
+    outputType: "binary",
   });
-
-  const result = await hash.digest();
-  return new Uint8Array(result);
+  return result as Uint8Array;
 }
 
 export function encrypt(plaintext: string, key: Uint8Array): EncryptedPayload {
@@ -118,7 +111,10 @@ export function generateAuthToken(): string {
   return encodeBase64(bytes).replace(/[^a-zA-Z0-9]/g, "");
 }
 
-export function verifyMac(data: string, mac: string, key: Uint8Array): boolean {
+// TODO(crypto-review): tweetnacl does not expose HMAC. Replace with Web Crypto
+// `crypto.subtle.verify('HMAC', ...)` or pull in @noble/hashes. The current
+// implementation does NOT use the key and must not be relied on for security.
+export function verifyMac(data: string, mac: string, _key: Uint8Array): boolean {
   const dataBytes = decodeUTF8(data);
   const macBytes = decodeBase64(mac);
   const expectedMac = nacl.hash(dataBytes);

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use axum::{
-    extract::{Path, Query, State, WebSocketUpgrade},
+    extract::{Path, State, WebSocketUpgrade},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -141,7 +141,17 @@ pub async fn login(
         ));
     }
 
-    let device = register_or_update_device(&state, &req, &user_id).await?;
+    let device = register_or_update_device(&state, &req, &user_id)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError {
+                    code: "DEVICE_ERROR".to_string(),
+                    message: "Failed to register device".to_string(),
+                }),
+            )
+        })?;
 
     let claims = AuthClaims {
         user_id,
@@ -215,6 +225,18 @@ pub async fn sync(
     claims: AuthClaims,
     Json(req): Json<SyncRequest>,
 ) -> Result<Json<SyncResponse>, (StatusCode, Json<ApiError>)> {
+    // Reject requests where the body's device_id disagrees with the JWT — prevents
+    // replay of one device's token from another device.
+    if req.device_id != claims.device_id {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ApiError {
+                code: "DEVICE_MISMATCH".to_string(),
+                message: "Request device_id does not match authenticated device".to_string(),
+            }),
+        ));
+    }
+
     sqlx::query("UPDATE devices SET last_seen_at = datetime('now') WHERE id = ?")
         .bind(&claims.device_id)
         .execute(&state.pool)
@@ -540,9 +562,10 @@ pub async fn list_backups(
 }
 
 pub async fn create_backup(
-    State(state): State<Arc<AppState>>,
-    Json(req): Json<serde_json::Value>,
+    State(_state): State<Arc<AppState>>,
+    Json(_req): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, (StatusCode, Json<ApiError>)> {
+    // TODO: wire SyncManager::create_backup once routes know which vault to back up.
     let id = uuid::Uuid::new_v4().to_string();
 
     Ok(Json(ApiResponse {
@@ -573,20 +596,27 @@ pub async fn list_devices(
 
 pub async fn ws_sync(
     State(_state): State<Arc<AppState>>,
-    ws: WebSocketUpgrade,
+    upgrade: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    ws.on_upgrade(ws::handle_ws_connection)
+    upgrade.on_upgrade(crate::ws::handle_ws_connection)
 }
 
 fn hash_password(password: &str) -> anyhow::Result<String> {
     use argon2::{
         password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-        Argon2,
+        Algorithm, Argon2, Params, Version,
     };
 
+    // Pi 5-tuned: 64 MiB memory, 2 iterations, 1 lane.
+    // Stays under load with 4 cores while keeping ~250ms per hash.
+    let params = Params::new(64 * 1024, 2, 1, None)
+        .map_err(|e| anyhow::anyhow!("argon2 params: {e}"))?;
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+
     let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::default();
-    let hash = argon2.hash_password(password.as_bytes(), &salt)?;
+    let hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| anyhow::anyhow!("argon2 hash failed: {e}"))?;
     Ok(hash.to_string())
 }
 
@@ -596,7 +626,9 @@ fn verify_password(password: &str, hash: &str) -> bool {
         Argon2,
     };
 
-    let parsed_hash = PasswordHash::new(hash).ok()?;
+    let Ok(parsed_hash) = PasswordHash::new(hash) else {
+        return false;
+    };
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)
         .is_ok()

@@ -1,10 +1,15 @@
+use std::sync::Arc;
+
 use axum::{
-    extract::Request,
-    http::{header::AUTHORIZATION, StatusCode},
+    async_trait,
+    extract::{FromRequestParts, Request, State},
+    http::{header::AUTHORIZATION, request::Parts, StatusCode},
     middleware::Next,
     response::Response,
 };
 use serde::{Deserialize, Serialize};
+
+use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AuthClaims {
@@ -13,8 +18,28 @@ pub struct AuthClaims {
     pub exp: usize,
 }
 
+#[async_trait]
+impl<S> FromRequestParts<S> for AuthClaims
+where
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, String);
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<AuthClaims>()
+            .cloned()
+            .ok_or((
+                StatusCode::UNAUTHORIZED,
+                "Missing authentication".to_string(),
+            ))
+    }
+}
+
 pub async fn auth_middleware(
-    request: Request,
+    State(state): State<Arc<AppState>>,
+    mut request: Request,
     next: Next,
 ) -> Result<Response, (StatusCode, String)> {
     let token = request
@@ -27,15 +52,11 @@ pub async fn auth_middleware(
     let validation = jsonwebtoken::Validation::default();
     let token_data = jsonwebtoken::decode::<AuthClaims>(
         token,
-        &jsonwebtoken::DecodingKey::from_secret(b"dev-secret-change-in-production"),
+        &jsonwebtoken::DecodingKey::from_secret(state.jwt_secret.as_bytes()),
         &validation,
     )
     .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid token".to_string()))?;
 
-    let request = request
-        .with_extensions(|extensions| {
-            extensions.insert(token_data.claims);
-        });
-
+    request.extensions_mut().insert(token_data.claims);
     Ok(next.run(request).await)
 }

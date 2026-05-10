@@ -1,6 +1,5 @@
-use axum::extract::ws::{WebSocket, Message};
+use axum::extract::ws::{Message, WebSocket};
 use futures::{SinkExt, StreamExt};
-use tracing;
 
 pub async fn handle_ws_connection(ws: WebSocket) {
     let (mut sender, mut receiver) = ws.split();

@@ -4,6 +4,7 @@ import { useVaultStore } from "@stores/vault";
 import { useEditorStore } from "@stores/editor";
 import { useSidebarStore } from "@stores/sidebar";
 import { useThemeStore } from "@stores/theme";
+import { useSyncStore } from "@stores/sync";
 
 export function registerDefaultCommands(): Command[] {
   const vaultStore = useVaultStore.getState();

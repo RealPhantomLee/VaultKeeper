@@ -1,6 +1,11 @@
+// Some structs are scaffolding for handlers/sync that aren't fully wired up yet.
+// They're complete data shapes that consumers in other crates will rely on, so
+// keep them rather than letting clippy strip them.
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct User {
     pub id: String,
     pub username: String,
@@ -9,7 +14,7 @@ pub struct User {
     pub updated_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Device {
     pub id: String,
     pub user_id: String,
@@ -20,7 +25,7 @@ pub struct Device {
     pub registered_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Vault {
     pub id: String,
     pub user_id: String,
@@ -30,7 +35,7 @@ pub struct Vault {
     pub updated_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SyncOperation {
     pub id: String,
     pub vault_id: String,
@@ -45,7 +50,7 @@ pub struct SyncOperation {
     pub synced_at: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SyncConflict {
     pub id: String,
     pub vault_id: String,
@@ -62,7 +67,7 @@ pub struct SyncConflict {
     pub resolved_at: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Backup {
     pub id: String,
     pub vault_id: String,

@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@vaultkeeper/types": ["../types/src"],
+      "@vaultkeeper/crypto": ["../crypto/src"],
+      "@vaultkeeper/config": ["../config/src"],
+      "@vaultkeeper/sync-protocol": ["./src"]
+    }
+  },
+  "include": ["src/**/*"]
+}

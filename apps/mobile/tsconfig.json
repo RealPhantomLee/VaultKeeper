@@ -1,0 +1,16 @@
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@vaultkeeper/types": ["../../packages/types/src"],
+      "@vaultkeeper/crypto": ["../../packages/crypto/src"],
+      "@vaultkeeper/sync-protocol": ["../../packages/sync-protocol/src"],
+      "@vaultkeeper/config": ["../../packages/config/src"]
+    },
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*", "App.tsx", "index.js"],
+  "exclude": ["node_modules", "android", "ios"]
+}

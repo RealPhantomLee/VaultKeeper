@@ -134,16 +134,39 @@ VaultKeeper/
 - Git
 
 ### Commands
+
+This repo ships a `justfile`. Install [`just`](https://github.com/casey/just) and run:
+
 ```bash
-npm run dev          # Start all development servers
-npm run build        # Build all packages and apps
-npm run test         # Run all tests
-npm run lint         # Lint all code
-npm run typecheck    # TypeScript type checking
-npm run format       # Format code with Prettier
-npm run docker:build # Build Docker images
-npm run docker:up    # Start Docker services
+just                 # list all recipes
+just dev-server      # run the Rust sync server (auto-reloads if cargo-watch is installed)
+just dev-desktop     # run the Tauri desktop app
+just check-server    # cargo check
+just build-server    # cargo build --release
+just lint-server     # cargo clippy -- -D warnings
+just typecheck       # pnpm -r typecheck across the workspace
+just doctor          # versions + git/docker status
 ```
+
+The pnpm scripts still work (`pnpm dev`, `pnpm build`, `pnpm typecheck`, etc.).
+
+### Pre-commit hooks (lefthook)
+
+`lefthook.yml` configures:
+- `prettier --check` on staged TS/JS/JSON/MD/YAML
+- `cargo fmt --check` on staged Rust
+- `cargo check` when Rust files are touched
+- a regex secret scan over the staged diff
+
+Hooks are not auto-installed. After cloning, run once:
+
+```bash
+pnpm dlx lefthook install
+# or with a global install:
+lefthook install
+```
+
+The `pre-push` hook runs `pnpm -r typecheck` and `cargo clippy -D warnings`.
 
 ## License
 

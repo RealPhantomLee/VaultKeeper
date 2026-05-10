@@ -119,6 +119,7 @@ export interface SyncOperation {
   deviceId: string;
   status: "pending" | "synced" | "conflict" | "failed";
   retryCount: number;
+  version?: number;
 }
 
 export interface SyncConflict {

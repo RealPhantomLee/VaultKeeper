@@ -14,7 +14,7 @@ import { parseMarkdown, serializeMarkdown } from "@utils/markdown";
 export function NoteEditor({ note }: { note: Note }) {
   const { updateNote } = useVaultStore();
   const [isPreview, setIsPreview] = useState(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   const editor = useEditor({
     extensions: [

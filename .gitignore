@@ -10,7 +10,7 @@ out/
 
 # Rust/Cargo
 target/
-**/Cargo.lock
+# Cargo.lock IS committed for the server binary crate (intentionally not ignored)
 
 # Tauri
 src-tauri/target/
@@ -21,6 +21,9 @@ src-tauri/gen/
 .idea/
 *.swp
 *.swo
+
+# Claude Code session artifacts (handoff briefs, settings)
+.claude/
 
 # OS
 .DS_Store

@@ -1,0 +1,38 @@
+# lefthook hooks for VaultKeeper.
+#
+# Not auto-installed — contributors run `lefthook install` once after cloning.
+# See README → "Pre-commit hooks" for setup.
+
+pre-commit:
+  parallel: true
+  commands:
+    prettier:
+      glob: "*.{ts,tsx,js,jsx,json,md,yml,yaml}"
+      run: pnpm prettier --check {staged_files}
+      stage_fixed: false
+
+    cargo-fmt:
+      root: server/
+      glob: "*.rs"
+      run: cargo fmt --check -- {staged_files}
+
+    cargo-check:
+      root: server/
+      glob: "*.{rs,toml}"
+      run: cargo check --bin vaultkeeper-server
+
+    secret-scan:
+      run: |
+        if git diff --cached --no-color | grep -nE '(password|secret|api[_-]?key|token)\s*=\s*["'"'"'][^"'"'"']{8,}'; then
+          echo "Possible secret in staged diff. Move to .env or use a placeholder."
+          exit 1
+        fi
+
+pre-push:
+  commands:
+    typecheck:
+      run: pnpm -r typecheck
+
+    cargo-clippy:
+      root: server/
+      run: cargo clippy --bin vaultkeeper-server -- -D warnings

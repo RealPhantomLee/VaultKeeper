@@ -1,6 +1,9 @@
+// SyncManager is built and ready; handlers haven't switched over from inline
+// SQL yet. Keep the implementation rather than gating clippy on it.
+#![allow(dead_code)]
+
 use std::path::PathBuf;
 use sqlx::SqlitePool;
-use tracing;
 
 pub struct SyncManager {
     pool: SqlitePool,

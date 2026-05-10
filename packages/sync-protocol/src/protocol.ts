@@ -3,7 +3,6 @@ import {
   SyncResponse,
   SyncOperation,
   SyncConflict,
-  SyncVersion,
 } from "@vaultkeeper/types";
 import { hashContent } from "@vaultkeeper/crypto";
 import { SYNC_PROTOCOL_VERSION } from "@vaultkeeper/config";
@@ -155,9 +154,6 @@ export function mergeContent(
   if (local === remote) return local;
   if (local === base) return remote;
   if (remote === base) return local;
-
-  const localDiff = computeDiff(base, local);
-  const remoteDiff = computeDiff(base, remote);
 
   const mergedLines: string[] = [];
   const baseLines = base.split("\n");

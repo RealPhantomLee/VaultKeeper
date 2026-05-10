@@ -1,9 +1,14 @@
-use sqlx::{Sqlite, SqlitePool};
-use tracing;
+use sqlx::SqlitePool;
 
 pub async fn create_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
     let pool = SqlitePool::connect(database_url).await?;
-    tracing::info!("Connected to database");
+
+    sqlx::query("PRAGMA journal_mode=WAL").execute(&pool).await?;
+    sqlx::query("PRAGMA synchronous=NORMAL").execute(&pool).await?;
+    sqlx::query("PRAGMA foreign_keys=ON").execute(&pool).await?;
+    sqlx::query("PRAGMA busy_timeout=5000").execute(&pool).await?;
+
+    tracing::info!("Connected to database (WAL mode enabled)");
     Ok(pool)
 }
 
