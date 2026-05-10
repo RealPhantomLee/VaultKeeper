@@ -9,7 +9,7 @@ on:
       - ".github/workflows/deploy.yml"
 
 env:
-  RUST_VERSION: "1.80"
+  RUST_VERSION: "1.95"
 
 jobs:
   deploy:

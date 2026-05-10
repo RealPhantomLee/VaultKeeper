@@ -49,7 +49,10 @@ pub async fn auth_middleware(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or((StatusCode::UNAUTHORIZED, "Missing token".to_string()))?;
 
-    let validation = jsonwebtoken::Validation::default();
+    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
+    validation.validate_exp = true;
+    validation.leeway = 60;
+
     let token_data = jsonwebtoken::decode::<AuthClaims>(
         token,
         &jsonwebtoken::DecodingKey::from_secret(state.jwt_secret.as_bytes()),
